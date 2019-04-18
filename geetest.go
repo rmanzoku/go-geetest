@@ -15,6 +15,8 @@ import (
 )
 
 var (
+	DefaultGeetest = &Geetest{}
+
 	Version = "3.0.0"
 
 	FnChallenge = "geetest_challenge"
@@ -64,13 +66,13 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 	}, nil
 }
 
-func (g *Geetest) PreProcess(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (uint8, error) {
+func (g *Geetest) PreProcess(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (*response, error) {
 	status, challege, err := g.register(userID, newCaptcha, jsonFormat, clientType, ipAddress)
 	if err != nil {
-		return status, err
+		return nil, err
 	}
 	g.responceStr, err = g.makeResponseFormat(status, challege, newCaptcha)
-	return status, err
+	return g.GetResponse()
 }
 
 func (g *Geetest) register(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (uint8, string, error) {
