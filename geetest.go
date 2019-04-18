@@ -1,13 +1,17 @@
 package geetest
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -35,8 +39,20 @@ type Geetest struct {
 type response struct {
 	Success    uint8  `json:"success"`
 	CaptchaID  string `json:"gt"`
-	Challege   string `json:"challenge"`
+	Challenge  string `json:"challenge"`
 	NewCaptcha bool   `json:"new_captcha"`
+}
+
+type request struct {
+	Seccode    string `json:"seccode"`
+	SDK        string `json:"sdk"`
+	UserID     string `json:"user_id"`
+	Data       string `json:"data"`
+	Timestamp  int64  `json:"timestamp"`
+	Challenge  string `json:"challenge"`
+	UserInfo   string `json:"userinfo"`
+	CaptchaID  string `json:"captchaid"`
+	JSONFormat uint8  `json:"json_format"`
 }
 
 func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
@@ -72,7 +88,7 @@ func (g *Geetest) register(userID string, newCaptcha uint8, jsonFormat uint8, cl
 			if err != nil {
 				return status, challenge, err
 			}
-			challenge = res.Challege
+			challenge = res.Challenge
 		} else {
 			challenge = priResponceStr
 		}
@@ -92,6 +108,11 @@ func (g *Geetest) GetResponseStr() string {
 	return g.responceStr
 }
 
+func (g *Geetest) GetResponse() (*response, error) {
+	r := new(response)
+	return r, json.Unmarshal([]byte(g.responceStr), r)
+}
+
 func (g *Geetest) makeFailChallenge() string {
 	rand.Seed(time.Now().UnixNano())
 	rnd1 := rand.Intn(100)
@@ -109,7 +130,7 @@ func (g *Geetest) makeResponseFormat(success uint8, challenge string, newCaptcha
 	ret := &response{
 		Success:   success,
 		CaptchaID: g.CaptchaID,
-		Challege:  challenge,
+		Challenge: challenge,
 	}
 
 	if newCaptcha != 0 {
@@ -132,7 +153,6 @@ func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, jsonFormat 
 			APIURL, RegisterHandler, g.CaptchaID, jsonFormat, clientType, ipAddress)
 	}
 
-	fmt.Println(registerURL)
 	res, err := http.Get(registerURL)
 	if err != nil {
 		return "", err
@@ -143,7 +163,79 @@ func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, jsonFormat 
 	return string(body), err
 }
 
+func (g *Geetest) SuccessValidate(challenge string, validate string, seccode string, userID string, gt string, data string, userInfo string, jsonFormat uint8) (uint8, error) {
+	var err error
+	if !g.checkPara(challenge, validate, seccode) {
+		return 0, errors.New("checkPara")
+	}
+	if !g.checkResult(challenge, validate) {
+		return 0, nil
+	}
+
+	validateURL := fmt.Sprintf("%s%s", APIURL, ValidateHandler)
+	req := &request{
+		Seccode:    seccode,
+		SDK:        "github.com/rmanzoku/gt3-go-sdk",
+		UserID:     userID,
+		Data:       data,
+		Timestamp:  time.Now().Unix(),
+		Challenge:  challenge,
+		UserInfo:   userInfo,
+		CaptchaID:  gt,
+		JSONFormat: jsonFormat,
+	}
+	_, err = g.postValues(validateURL, req)
+	if err != nil {
+		return 0, err
+	}
+
+	// fmt.Println(backinfo)
+	return 1, nil
+
+}
+
+func (g *Geetest) postValues(apiServer string, body *request) (string, error) {
+	b, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+	res, err := http.Post(apiServer, "application/json", bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+
+	defer res.Body.Close()
+	ret, err := ioutil.ReadAll(res.Body)
+	return string(ret), err
+}
+
+func (g *Geetest) checkResult(origin, validate string) bool {
+	encodeStr := g.md5Encode(g.PrivateKey + "geetest" + origin)
+	if validate == encodeStr {
+		return true
+	}
+	return false
+}
+
+func (g *Geetest) checkPara(challenge string, validate string, seccode string) bool {
+	if challenge == "" {
+		return false
+	}
+	if validate == "" {
+		return false
+	}
+	if seccode == "" {
+		return false
+	}
+
+	return true
+}
+
 func (g *Geetest) md5Encode(values string) string {
 	ret := md5.Sum([]byte(values))
 	return fmt.Sprintf("%x", ret)
+}
+
+func strip(str string) string {
+	return strings.Join(strings.Fields(str), "")
 }
