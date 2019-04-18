@@ -1,5 +1,11 @@
 package geetest
 
+import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
+)
+
 var (
 	Version = "3.0.0"
 
@@ -29,4 +35,35 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 		SDKVersion:  Version,
 		responceStr: "",
 	}, nil
+}
+
+func (g *Geetest) PreProcess(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (interface{}, error) {
+	_, priResponse, err := g.register(userID, newCaptcha, jsonFormat, clientType, ipAddress)
+	return priResponse, err
+}
+
+func (g *Geetest) register(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (interface{}, string, error) {
+	priResponse, err := g.registerChallenge(userID, newCaptcha, jsonFormat, clientType, ipAddress)
+	return nil, priResponse, err
+}
+
+func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (string, error) {
+	var registerURL string
+	if userID != "" {
+		registerURL = fmt.Sprintf("%s%s?gt=%s&user_id=%s&json_format=%v&client_type=%s&ip_address=%s",
+			APIURL, RegisterHandler, g.CaptchaID, userID, jsonFormat, clientType, ipAddress)
+	} else {
+		registerURL = fmt.Sprintf("%s%s?gt=%s&json_format=%v&client_type=%s&ip_address=%s",
+			APIURL, RegisterHandler, g.CaptchaID, jsonFormat, clientType, ipAddress)
+	}
+
+	fmt.Println(registerURL)
+	res, err := http.Get(registerURL)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	return string(body), err
 }
