@@ -26,7 +26,7 @@ func TestPreProcess(t *testing.T) {
 	g, err := NewGeetest(privateKey, captchaID)
 	is.NoErr(err)
 
-	status, err := g.PreProcess(
+	_, err = g.PreProcess(
 		"",
 		1,
 		1,
@@ -34,5 +34,4 @@ func TestPreProcess(t *testing.T) {
 		"127.0.0.1",
 	)
 	is.NoErr(err)
-	fmt.Println(status)
 }
