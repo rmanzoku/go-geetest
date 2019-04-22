@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/google/go-querystring/query"
@@ -154,12 +153,10 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 		JSONFormat: jsonFormat,
 	}
 
-	backinfo, err := g.postValues(g.ValidateURL, req)
+	backinfo, err := g.validateChallenge(req)
 	if err != nil {
 		return false, err
 	}
-
-	fmt.Println(backinfo)
 
 	if backinfo.Seccode != g.md5Encode(seccode) {
 		return false, errors.New("Invalid seccode")
@@ -169,22 +166,24 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 
 }
 
-func (g *Geetest) postValues(url string, req *ValidateRequest) (*validateResponse, error) {
+func (g *Geetest) validateChallenge(req *ValidateRequest) (*validateResponse, error) {
 	v, err := query.Values(req)
 	if err != nil {
 		return nil, err
 	}
+	validateURL := g.ValidateURL + "?" + v.Encode()
 
-	res, err := http.Post(url+"?"+v.Encode(), "", nil)
+	res, err := http.Post(validateURL, "", nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
+
 	ret := new(validateResponse)
 	return ret, json.Unmarshal(body, ret)
 }
@@ -214,8 +213,4 @@ func (g *Geetest) checkPara(challenge string, validate string, seccode string) b
 func (g *Geetest) md5Encode(values string) string {
 	ret := md5.Sum([]byte(values))
 	return fmt.Sprintf("%x", ret)
-}
-
-func strip(str string) string {
-	return strings.Join(strings.Fields(str), "")
 }
