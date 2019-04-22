@@ -25,7 +25,7 @@ var (
 	apiURL          = "http://api.geetest.com"
 	registerHandler = "/register.php"
 	validateHandler = "/validate.php"
-	jsonFormat      = true
+	jsonFormat      = 1
 )
 
 type Geetest struct {
@@ -50,16 +50,15 @@ type RegisterResponse struct {
 }
 
 type ValidateRequest struct {
-	Challenge  string `json:"geetest_challenge" url:"challenge"`
-	Seccode    string `json:"geetest_seccode" url:"seccode"`
-	Validate   string `json:"geetest_validate" url:"validate"`
+	Seccode    string `json:"" url:"seccode"`
 	SDK        string `json:"sdk" url:"sdk"`
 	UserID     string `json:"user_id" url:"user_id"`
 	Data       string `json:"data" url:"data"`
 	Timestamp  int64  `json:"timestamp" url:"timestamp"`
+	Challenge  string `json:"" url:"challenge"`
 	UserInfo   string `json:"userinfo" url:"userinfo"`
 	CaptchaID  string `json:"captchaid" url:"captchaid"`
-	JSONFormat uint8  `json:"json_format" url:"json_format"`
+	JSONFormat int    `json:"json_format" url:"json_format"`
 }
 
 type validateResponse struct {
@@ -75,23 +74,20 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 	}, nil
 }
 
-func (g *Geetest) PreProcess(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
-	return g.register(userID, newCaptcha, jsonFormat, clientType, ipAddress)
-}
-
-func (g *Geetest) register(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
-	res, err := g.registerChallenge(userID, newCaptcha, jsonFormat, clientType, ipAddress)
+func (g *Geetest) PreProcess(userID string, newCaptcha uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
+	res, err := g.registerChallenge(userID, newCaptcha, clientType, ipAddress)
 	if err != nil {
 		return nil, err
 	}
+	res.Success = 1
 
+	fmt.Println(res.Challenge)
 	if len(res.Challenge) == 32 {
 		res.Challenge = g.md5Encode(res.Challenge + g.PrivateKey)
 	} else {
 		res.Challenge = g.makeFailChallenge()
 	}
 
-	res.Success = 1
 	res.CaptchaID = g.CaptchaID
 	if newCaptcha != 0 {
 		res.NewCaptcha = true
@@ -111,28 +107,28 @@ func (g *Geetest) makeFailChallenge() string {
 	return md5Str1 + md5Str2[0:2]
 }
 
-func (g *Geetest) makeResponseFormat(success uint8, challenge string, newCaptcha uint8) (string, error) {
-	if challenge == "" {
-		challenge = g.makeFailChallenge()
-	}
+// func (g *Geetest) makeResponseFormat(success uint8, challenge string, newCaptcha uint8) (string, error) {
+// 	if challenge == "" {
+// 		challenge = g.makeFailChallenge()
+// 	}
 
-	ret := &RegisterResponse{
-		Success:   success,
-		CaptchaID: g.CaptchaID,
-		Challenge: challenge,
-	}
+// 	ret := &RegisterResponse{
+// 		Success:   success,
+// 		CaptchaID: g.CaptchaID,
+// 		Challenge: challenge,
+// 	}
 
-	if newCaptcha != 0 {
-		ret.NewCaptcha = true
-	} else {
-		ret.NewCaptcha = false
-	}
+// 	if newCaptcha != 0 {
+// 		ret.NewCaptcha = true
+// 	} else {
+// 		ret.NewCaptcha = false
+// 	}
 
-	jsonByte, err := json.Marshal(ret)
-	return string(jsonByte), err
-}
+// 	jsonByte, err := json.Marshal(ret)
+// 	return string(jsonByte), err
+// }
 
-func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, jsonFormat uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
+func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
 	var registerURL string
 	if userID != "" {
 		registerURL = fmt.Sprintf("%s?gt=%s&user_id=%s&json_format=%v&client_type=%s&ip_address=%s",
@@ -152,12 +148,13 @@ func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, jsonFormat 
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(string(body))
 
 	ret := new(RegisterResponse)
 	return ret, json.Unmarshal(body, ret)
 }
 
-func (g *Geetest) SuccessValidate(challenge string, validate string, seccode string, userID string, gt string, data string, userInfo string, jsonFormat uint8) (bool, error) {
+func (g *Geetest) SuccessValidate(challenge string, validate string, seccode string, userID string, data string, userInfo string) (bool, error) {
 	var err error
 	if !g.checkPara(challenge, validate, seccode) {
 		return false, errors.New("Parameters are not enough")
@@ -174,7 +171,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 		Timestamp:  time.Now().Unix(),
 		Challenge:  challenge,
 		UserInfo:   userInfo,
-		CaptchaID:  gt,
+		CaptchaID:  g.CaptchaID,
 		JSONFormat: jsonFormat,
 	}
 
@@ -183,7 +180,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 		return false, err
 	}
 
-	if backinfo.Seccode != seccode {
+	if backinfo.Seccode != g.md5Encode(seccode) {
 		return false, errors.New("Invalid seccode")
 	}
 
@@ -191,22 +188,24 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 
 }
 
-func (g *Geetest) postValues(apiServer string, req *ValidateRequest) (*validateResponse, error) {
+func (g *Geetest) postValues(url string, req *ValidateRequest) (*validateResponse, error) {
 	v, err := query.Values(req)
 	if err != nil {
 		return nil, err
 	}
-	res, err := http.Post(apiServer+"?"+v.Encode(), "", nil)
+	fmt.Println(url + "?" + v.Encode())
+	res, err := http.Post(url+"?"+v.Encode(), "", nil)
 	if err != nil {
 		return nil, err
 	}
 	defer res.Body.Close()
-	b, err := ioutil.ReadAll(res.Body)
+	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(string(body))
 	ret := new(validateResponse)
-	return ret, json.Unmarshal(b, ret)
+	return ret, json.Unmarshal(body, ret)
 }
 
 func (g *Geetest) checkResult(origin, validate string) bool {
