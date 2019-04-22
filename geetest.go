@@ -18,10 +18,7 @@ var (
 	// DefaultGeetest is default Geetest
 	DefaultGeetest = &Geetest{}
 
-	sdk = "github.com/rmanzoku/go-geetest"
-
-	// GTStatusSessionKey = "gt_server_status"
-
+	sdk             = "github.com/rmanzoku/go-geetest"
 	apiURL          = "http://api.geetest.com"
 	registerHandler = "/register.php"
 	validateHandler = "/validate.php"
@@ -33,6 +30,7 @@ type Geetest struct {
 	CaptchaID   string
 	RegisterURL string
 	ValidateURL string
+	SDK         string
 }
 
 type RegisterRequest struct {
@@ -50,12 +48,12 @@ type RegisterResponse struct {
 }
 
 type ValidateRequest struct {
-	Seccode    string `json:"" url:"seccode"`
+	Seccode    string `json:"seccode" url:"seccode"`
 	SDK        string `json:"sdk" url:"sdk"`
 	UserID     string `json:"user_id" url:"user_id"`
 	Data       string `json:"data" url:"data"`
 	Timestamp  int64  `json:"timestamp" url:"timestamp"`
-	Challenge  string `json:"" url:"challenge"`
+	Challenge  string `json:"challege" url:"challenge"`
 	UserInfo   string `json:"userinfo" url:"userinfo"`
 	CaptchaID  string `json:"captchaid" url:"captchaid"`
 	JSONFormat int    `json:"json_format" url:"json_format"`
@@ -71,6 +69,7 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 		CaptchaID:   captchaID,
 		RegisterURL: apiURL + registerHandler,
 		ValidateURL: apiURL + validateHandler,
+		SDK:         sdk,
 	}, nil
 }
 
@@ -107,27 +106,6 @@ func (g *Geetest) makeFailChallenge() string {
 	return md5Str1 + md5Str2[0:2]
 }
 
-// func (g *Geetest) makeResponseFormat(success uint8, challenge string, newCaptcha uint8) (string, error) {
-// 	if challenge == "" {
-// 		challenge = g.makeFailChallenge()
-// 	}
-
-// 	ret := &RegisterResponse{
-// 		Success:   success,
-// 		CaptchaID: g.CaptchaID,
-// 		Challenge: challenge,
-// 	}
-
-// 	if newCaptcha != 0 {
-// 		ret.NewCaptcha = true
-// 	} else {
-// 		ret.NewCaptcha = false
-// 	}
-
-// 	jsonByte, err := json.Marshal(ret)
-// 	return string(jsonByte), err
-// }
-
 func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
 	var registerURL string
 	if userID != "" {
@@ -148,7 +126,6 @@ func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, clientType 
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
 
 	ret := new(RegisterResponse)
 	return ret, json.Unmarshal(body, ret)
@@ -165,7 +142,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 
 	req := &ValidateRequest{
 		Seccode:    seccode,
-		SDK:        "github.com/rmanzoku/gt3-go-sdk",
+		SDK:        g.SDK,
 		UserID:     userID,
 		Data:       data,
 		Timestamp:  time.Now().Unix(),
@@ -179,6 +156,8 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 	if err != nil {
 		return false, err
 	}
+
+	fmt.Println(backinfo)
 
 	if backinfo.Seccode != g.md5Encode(seccode) {
 		return false, errors.New("Invalid seccode")
@@ -203,7 +182,7 @@ func (g *Geetest) postValues(url string, req *ValidateRequest) (*validateRespons
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
+
 	ret := new(validateResponse)
 	return ret, json.Unmarshal(body, ret)
 }
