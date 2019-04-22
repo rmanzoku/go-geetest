@@ -19,7 +19,7 @@ var (
 	DefaultGeetest = &Geetest{}
 
 	sdk             = "github.com/rmanzoku/go-geetest"
-	apiURL          = "http://api.geetest.com"
+	apiURL          = "https://api.geetest.com"
 	registerHandler = "/register.php"
 	validateHandler = "/validate.php"
 	jsonFormat      = 1
@@ -34,10 +34,11 @@ type Geetest struct {
 }
 
 type RegisterRequest struct {
-	UserID     string `json:"user_id" url:"userid"`
-	NewCaptcha bool   `json:"new_captcha" url:"newCaptcha"`
-	ClientType string `json:"client_type" url:"clientType"`
-	IPAddress  string `json:"ip_address" url:"ipAddress"`
+	UserID     string `url:"user_id,omitempty"`
+	CaptchaID  string `url:"gt"`
+	ClientType string `url:"client_type"`
+	IPAddress  string `url:"ip_address"`
+	JSONFormat int    `url:"json_format"`
 }
 
 type RegisterResponse struct {
@@ -73,25 +74,27 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 	}, nil
 }
 
-func (g *Geetest) PreProcess(userID string, newCaptcha uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
-	res, err := g.registerChallenge(userID, newCaptcha, clientType, ipAddress)
+func (g *Geetest) PreProcess(userID string, newCaptcha bool, clientType string, ipAddress string) (*RegisterResponse, error) {
+	req := &RegisterRequest{
+		UserID:     userID,
+		ClientType: clientType,
+		IPAddress:  ipAddress,
+		CaptchaID:  g.CaptchaID,
+		JSONFormat: jsonFormat,
+	}
+	res, err := g.registerChallenge(req)
 	if err != nil {
 		return nil, err
 	}
-	res.Success = 1
 
-	fmt.Println(res.Challenge)
+	res.Success = 1
+	res.CaptchaID = g.CaptchaID
+	res.NewCaptcha = newCaptcha
+
 	if len(res.Challenge) == 32 {
 		res.Challenge = g.md5Encode(res.Challenge + g.PrivateKey)
 	} else {
 		res.Challenge = g.makeFailChallenge()
-	}
-
-	res.CaptchaID = g.CaptchaID
-	if newCaptcha != 0 {
-		res.NewCaptcha = true
-	} else {
-		res.NewCaptcha = false
 	}
 
 	return res, nil
@@ -106,15 +109,14 @@ func (g *Geetest) makeFailChallenge() string {
 	return md5Str1 + md5Str2[0:2]
 }
 
-func (g *Geetest) registerChallenge(userID string, newCaptcha uint8, clientType string, ipAddress string) (*RegisterResponse, error) {
-	var registerURL string
-	if userID != "" {
-		registerURL = fmt.Sprintf("%s?gt=%s&user_id=%s&json_format=%v&client_type=%s&ip_address=%s",
-			g.RegisterURL, g.CaptchaID, userID, jsonFormat, clientType, ipAddress)
-	} else {
-		registerURL = fmt.Sprintf("%s?gt=%s&json_format=%v&client_type=%s&ip_address=%s",
-			g.RegisterURL, g.CaptchaID, jsonFormat, clientType, ipAddress)
+func (g *Geetest) registerChallenge(req *RegisterRequest) (*RegisterResponse, error) {
+	v, err := query.Values(req)
+	if err != nil {
+		return nil, err
 	}
+	registerURL := g.RegisterURL + "?" + v.Encode()
+
+	fmt.Println(registerURL)
 
 	res, err := http.Get(registerURL)
 	if err != nil {
@@ -172,7 +174,7 @@ func (g *Geetest) postValues(url string, req *ValidateRequest) (*validateRespons
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(url + "?" + v.Encode())
+
 	res, err := http.Post(url+"?"+v.Encode(), "", nil)
 	if err != nil {
 		return nil, err
@@ -182,7 +184,7 @@ func (g *Geetest) postValues(url string, req *ValidateRequest) (*validateRespons
 	if err != nil {
 		return nil, err
 	}
-
+	fmt.Println(string(body))
 	ret := new(validateResponse)
 	return ret, json.Unmarshal(body, ret)
 }
