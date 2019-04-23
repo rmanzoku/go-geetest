@@ -109,13 +109,7 @@ func (g *Geetest) makeFailChallenge() string {
 }
 
 func (g *Geetest) registerChallenge(req *RegisterRequest) (*RegisterResponse, error) {
-	v, err := query.Values(req)
-	if err != nil {
-		return nil, err
-	}
-	registerURL := g.RegisterURL + "?" + v.Encode()
-
-	fmt.Println(registerURL)
+	registerURL := g.RegisterURL + "?" + req.Query()
 
 	res, err := http.Get(registerURL)
 	if err != nil {
@@ -135,10 +129,7 @@ func (g *Geetest) registerChallenge(req *RegisterRequest) (*RegisterResponse, er
 func (g *Geetest) SuccessValidate(challenge string, validate string, seccode string, userID string, data string, userInfo string) (bool, error) {
 	var err error
 	if !g.checkPara(challenge, validate, seccode) {
-		return false, errors.New("Parameters are not enough")
-	}
-	if !g.checkResult(challenge, validate) {
-		return false, errors.New("Invalid challege")
+		return false, errors.New("Invalid parameter")
 	}
 
 	req := &ValidateRequest{
@@ -167,11 +158,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 }
 
 func (g *Geetest) validateChallenge(req *ValidateRequest) (*validateResponse, error) {
-	v, err := query.Values(req)
-	if err != nil {
-		return nil, err
-	}
-	validateURL := g.ValidateURL + "?" + v.Encode()
+	validateURL := g.ValidateURL + "?" + req.Query()
 
 	res, err := http.Post(validateURL, "", nil)
 	if err != nil {
@@ -188,15 +175,7 @@ func (g *Geetest) validateChallenge(req *ValidateRequest) (*validateResponse, er
 	return ret, json.Unmarshal(body, ret)
 }
 
-func (g *Geetest) checkResult(origin, validate string) bool {
-	encodeStr := g.md5Encode(g.PrivateKey + "geetest" + origin)
-	if validate == encodeStr {
-		return true
-	}
-	return false
-}
-
-func (g *Geetest) checkPara(challenge string, validate string, seccode string) bool {
+func (g *Geetest) checkPara(challenge, validate, seccode string) bool {
 	if challenge == "" {
 		return false
 	}
@@ -207,7 +186,22 @@ func (g *Geetest) checkPara(challenge string, validate string, seccode string) b
 		return false
 	}
 
+	encodeStr := g.md5Encode(g.PrivateKey + "geetest" + challenge)
+	if validate != encodeStr {
+		return false
+	}
+
 	return true
+}
+
+func (r *RegisterRequest) Query() string {
+	v, _ := query.Values(r)
+	return v.Encode()
+}
+
+func (r *ValidateRequest) Query() string {
+	v, _ := query.Values(r)
+	return v.Encode()
 }
 
 func (g *Geetest) md5Encode(values string) string {
