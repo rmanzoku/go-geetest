@@ -24,6 +24,7 @@ var (
 	jsonFormat      = 1
 )
 
+// Geetest is base struct for connection information for geetest.
 type Geetest struct {
 	PrivateKey  string
 	CaptchaID   string
@@ -32,19 +33,27 @@ type Geetest struct {
 	SDK         string
 }
 
+// ClientValidate is a captcha response from geetest server on a client.
+type ClientValidate struct {
+	GeetestChallenge string `json:"geetest_challenge"`
+	GeetestValidate  string `json:"geetest_validate"`
+	GeetestSeccode   string `json:"geetest_seccode"`
+}
+
+// RegisterResponse is challenge infomation using on a client.
+type RegisterResponse struct {
+	Success    uint8  `json:"success"`
+	CaptchaID  string `json:"gt"`
+	Challenge  string `json:"challenge"`
+	NewCaptcha bool   `json:"new_captcha"`
+}
+
 type registerRequest struct {
 	UserID     string `url:"user_id,omitempty"`
 	CaptchaID  string `url:"gt"`
 	ClientType string `url:"client_type"`
 	IPAddress  string `url:"ip_address"`
 	JSONFormat int    `url:"json_format"`
-}
-
-type RegisterResponse struct {
-	Success    uint8  `json:"success"`
-	CaptchaID  string `json:"gt"`
-	Challenge  string `json:"challenge"`
-	NewCaptcha bool   `json:"new_captcha"`
 }
 
 type validateRequest struct {
