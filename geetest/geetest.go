@@ -32,7 +32,7 @@ type Geetest struct {
 	SDK         string
 }
 
-type RegisterRequest struct {
+type registerRequest struct {
 	UserID     string `url:"user_id,omitempty"`
 	CaptchaID  string `url:"gt"`
 	ClientType string `url:"client_type"`
@@ -47,7 +47,7 @@ type RegisterResponse struct {
 	NewCaptcha bool   `json:"new_captcha"`
 }
 
-type ValidateRequest struct {
+type validateRequest struct {
 	Seccode    string `json:"seccode" url:"seccode"`
 	SDK        string `json:"sdk" url:"sdk"`
 	UserID     string `json:"user_id" url:"user_id"`
@@ -74,7 +74,7 @@ func NewGeetest(captchaID, privateKey string) (*Geetest, error) {
 }
 
 func (g *Geetest) PreProcess(userID string, newCaptcha bool, clientType string, ipAddress string) (*RegisterResponse, error) {
-	req := &RegisterRequest{
+	req := &registerRequest{
 		UserID:     userID,
 		ClientType: clientType,
 		IPAddress:  ipAddress,
@@ -108,7 +108,7 @@ func (g *Geetest) makeFailChallenge() string {
 	return md5Str1 + md5Str2[0:2]
 }
 
-func (g *Geetest) registerChallenge(req *RegisterRequest) (*RegisterResponse, error) {
+func (g *Geetest) registerChallenge(req *registerRequest) (*RegisterResponse, error) {
 	registerURL := g.RegisterURL + "?" + req.Query()
 
 	res, err := http.Get(registerURL)
@@ -132,7 +132,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 		return false, errors.New("Invalid parameter")
 	}
 
-	req := &ValidateRequest{
+	req := &validateRequest{
 		Seccode:    seccode,
 		SDK:        g.SDK,
 		UserID:     userID,
@@ -157,7 +157,7 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 
 }
 
-func (g *Geetest) validateChallenge(req *ValidateRequest) (*validateResponse, error) {
+func (g *Geetest) validateChallenge(req *validateRequest) (*validateResponse, error) {
 	validateURL := g.ValidateURL + "?" + req.Query()
 
 	res, err := http.Post(validateURL, "", nil)
@@ -194,12 +194,12 @@ func (g *Geetest) checkPara(challenge, validate, seccode string) bool {
 	return true
 }
 
-func (r *RegisterRequest) Query() string {
+func (r *registerRequest) Query() string {
 	v, _ := query.Values(r)
 	return v.Encode()
 }
 
-func (r *ValidateRequest) Query() string {
+func (r *validateRequest) Query() string {
 	v, _ := query.Values(r)
 	return v.Encode()
 }
