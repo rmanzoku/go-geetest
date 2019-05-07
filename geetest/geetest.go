@@ -135,6 +135,10 @@ func (g *Geetest) registerChallenge(req *registerRequest) (*RegisterResponse, er
 	return ret, json.Unmarshal(body, ret)
 }
 
+func (g *Geetest) SuccessClientValidate(cv *ClientValidate, userID string, data string, userInfo string) (bool, error) {
+	return g.SuccessValidate(cv.GeetestChallenge, cv.GeetestValidate, cv.GeetestSeccode, userID, data, userInfo)
+}
+
 func (g *Geetest) SuccessValidate(challenge string, validate string, seccode string, userID string, data string, userInfo string) (bool, error) {
 	var err error
 	if !g.checkPara(challenge, validate, seccode) {
@@ -163,7 +167,6 @@ func (g *Geetest) SuccessValidate(challenge string, validate string, seccode str
 	}
 
 	return true, nil
-
 }
 
 func (g *Geetest) validateChallenge(req *validateRequest) (*validateResponse, error) {
